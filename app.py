@@ -1,6 +1,6 @@
 import sys, subprocess, os
 
-# Auto-install if missing (for Streamlit Cloud)
+# Auto-install if missing (for Streamlit Cloud or fresh envs)
 for pkg in ["streamlit", "selenium", "fpdf2"]:
     try:
         __import__(pkg.split()[0])
@@ -49,18 +49,21 @@ class Deal:
             food = drinks = 7
         return party, food, drinks
 
-# ==== INIT SELENIUM DRIVER ====
+# ==== INIT SELENIUM DRIVER (Cloud + Local) ====
 def init_driver():
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    # Detect if running on Streamlit Cloud (Linux, no Chrome preinstalled)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
     if os.path.exists("/usr/bin/chromium-browser"):
-        options.binary_location = "/usr/bin/chromium-browser"
-        return webdriver.Chrome(executable_path="/usr/bin/chromedriver", options=options)
+        # Running on Streamlit Cloud: tell Selenium exactly where Chromium and chromedriver are
+        chrome_options.binary_location = "/usr/bin/chromium-browser"
+        return webdriver.Chrome(executable_path="/usr/bin/chromedriver", options=chrome_options)
     else:
-        return webdriver.Chrome(options=options)  # local run (Selenium 4.x auto driver)
+        # Local run — Selenium 4.x+ automatically manages driver
+        return webdriver.Chrome(options=chrome_options)
 
 # ==== GENERIC SCRAPER ====
 def scrape_site(driver, name, url, card_sel, title_sel, price_sel, dep_sel, link_sel):
@@ -136,7 +139,8 @@ def generate_pdf(deals):
         pdf.multi_cell(0, 6, f"{d.provider} — {d.title}")
         pdf.multi_cell(0, 6, f"Price: ${d.price} CAD | Departure: {d.departure_city}")
         pdf.multi_cell(0, 6, f"Party:{d.party_score}/10 | Food:{d.food_score}/10 | Drinks:{d.drinks_score}/10")
-        if d.link: pdf.multi_cell(0, 6, f"Link: {d.link}")
+        if d.link:
+            pdf.multi_cell(0, 6, f"Link: {d.link}")
         pdf.ln(3)
     return pdf.output(dest="S").encode("latin1")
 
